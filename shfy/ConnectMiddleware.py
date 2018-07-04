@@ -51,7 +51,7 @@ class UsedThing():
     txt_file_02 = "C:\\file\\skyon\\file_original\\"  #########txt文件存放位置(存放四个字段文件)
     log_path = "C:\\file\\skyon\\log\\"
     download_path = "C:\\file\\skyon\\crawl_download\\"
-    js_path = 'C:\\file\\skyon\\shfy_00\\shfy\\decode-result.js'
+    js_path = 'C:\\code\\MyProject\\shfy\\shfy\\decode-result.js'
 
     HTTPERRORCODE = [403, 404, 405, 302, 200, 407, 503, 504]
 

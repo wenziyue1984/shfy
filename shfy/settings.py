@@ -11,7 +11,7 @@
 import shfy.ConnectMiddleware as connect
 import random
 import time
-BOT_NAME = 'shfy_00'
+BOT_NAME = 'shfy'
 
 SPIDER_MODULES = ['shfy.spiders']
 NEWSPIDER_MODULE = 'shfy.spiders'
