@@ -24,7 +24,7 @@ sys.setdefaultencoding('utf-8')
 
 
 class ShfySpider(Spider):
-	name = 'shfy_00'
+	name = 'shfy'
 	domain = "court.gov.cn"
 	start_urls = ['http://wenshu.court.gov.cn/Index']
 	# start_urls = ['http://wenshu.court.gov.cn/CreateContentJS/CreateContentJS.aspx?DocID=bd135174-5ee7-4ab5-ab5d-a72000aea26a']
