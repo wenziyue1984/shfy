@@ -81,7 +81,7 @@ class ShfySpider(Spider):
 			check_time_str = (start_time + datetime.timedelta(days=i)).strftime('%Y-%m-%d')
 			for court_name in self.court_list:
 				# court_name = u"上海市徐汇区人民法院"  # 测试
-				print court_name, check_time_str
+				# print court_name, check_time_str
 				# 1.获取number
 				guid = self.get_guid()
 				post_url = 'http://wenshu.court.gov.cn/ValiCode/GetCode'
@@ -128,13 +128,13 @@ class ShfySpider(Spider):
 											   'number': number , 'vjkl5': vjkl5})
 
 	def get_total_old(self, response):
-		print response.body
 		court_name = response.meta['court']
 		check_time_str = response.meta['date']
 		number = response.meta['number']
 		guid = response.meta['guid']
 		vl5x = response.meta['vl5x']
 		vjkl5 = response.meta['vjkl5']
+		print court_name, check_time_str, response.body
 		body_text = response.body.replace("\\", "")
 		try:
 			dict_text = json.loads(body_text[1:-1])
