@@ -53,7 +53,6 @@ class UsedThing():
     log_path = "C:\\file\\skyon\\log\\"
     bad_req_path = "C:\\file\\skyon\\bad_req\\"
     download_path = "C:\\file\\skyon\\crawl_download\\"
-    # js_path = 'C:\\code\\MyProject\\shfy\\shfy\\decode-result.js'
     js_path = 'C:\\code\\MyProject\\shfy\\shfy\\new_decode.js'
     IDjs_path = 'C:\\code\\MyProject\\shfy\\shfy\\total.js'
 
