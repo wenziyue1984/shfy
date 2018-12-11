@@ -1,13 +1,16 @@
 # -*- coding: utf-8 -*-
+
+import codecs
 import random
 
 import binascii
 import urllib
-
+from lxml import etree, html
 import execjs
+from pydispatch import dispatcher
 from scrapy.spiders import Spider
 import datetime, time
-from scrapy import FormRequest
+from scrapy import FormRequest, signals
 
 import shfy.ConnectMiddleware as connect
 import json, re, requests
@@ -22,6 +25,10 @@ from shfy.items import ShfyItem
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
+'''
+修改：将返回的remind key和[]记录下来，以便后期重新爬取
+'''
+
 
 class ShfySpider(Spider):
 	name = 'shfy'
@@ -33,8 +40,13 @@ class ShfySpider(Spider):
 	# 日志文件夹
 	if not os.path.exists(connect.UsedThing.log_path + time.strftime("%Y%m%d", time.localtime()) + "/"):
 		os.makedirs(connect.UsedThing.log_path + time.strftime("%Y%m%d", time.localtime()) + "/")
+	# 记录失败请求文件夹
+	if not os.path.exists(connect.UsedThing.bad_req_path):
+		os.makedirs(connect.UsedThing.bad_req_path)
 
 	def __init__(self, date=None):
+		# spider关闭信号和spider_spider_closed函数绑定
+		dispatcher.connect(self.spider_closed, signals.spider_closed)
 		if date:
 			# 自定义模式
 			Spider.date = date
@@ -67,9 +79,12 @@ class ShfySpider(Spider):
 			else:
 				pass
 			self.stop_date = str(datetime.date.today() + datetime.timedelta(-1))
-			print self.start_date, self.stop_date
+			print(self.start_date, self.stop_date)
 
 		self.court_list = connect.UsedThing.court_list
+		# 收集失败请求文件
+		self.path_bad_req = connect.UsedThing.bad_req_path + self.name + self.start_date
+		self.file_bad_req = codecs.open(self.path_bad_req + '.txt', 'wb', encoding='utf-8')
 
 	def start_requests(self):
 		# start_time = datetime.datetime.strptime('2018-03-07', '%Y-%m-%d')
@@ -80,7 +95,7 @@ class ShfySpider(Spider):
 		for i in range((stop_time - start_time).days + 1):
 			check_time_str = (start_time + datetime.timedelta(days=i)).strftime('%Y-%m-%d')
 			for court_name in self.court_list:
-				# court_name = u"上海市徐汇区人民法院"  # 测试
+				# court_name = u"上海市虹口区人民法院"  # 测试
 				# print court_name, check_time_str
 				# 1.获取number
 				guid = self.get_guid()
@@ -134,12 +149,15 @@ class ShfySpider(Spider):
 		guid = response.meta['guid']
 		vl5x = response.meta['vl5x']
 		vjkl5 = response.meta['vjkl5']
-		print court_name, check_time_str, response.body
+		print(court_name, check_time_str, response.body)
 		body_text = response.body.replace("\\", "")
 		try:
 			dict_text = json.loads(body_text[1:-1])
 		except:
 			dict_text = ""
+			bad_req = {'type': 'get_total', 'court_name': court_name, 'check_time_str': check_time_str}
+			line_bad_req = json.dumps(bad_req) + ',\n'
+			self.file_bad_req.write(line_bad_req.decode('unicode_escape').encode('utf-8'))
 		if dict_text:
 			try:
 				full_num = int(dict_text[0]["Count"])
@@ -159,36 +177,62 @@ class ShfySpider(Spider):
 						}
 						post_url = 'http://wenshu.court.gov.cn/List/ListContent'
 						yield FormRequest(post_url, formdata=data, callback=self.get_DocID, dont_filter=True, headers=header,
-												 meta={'vjkl5': vjkl5})
+												 meta={'vjkl5': vjkl5, 'court': court_name, 'date': check_time_str, "Index": str(page_index)})
 			except:
 				pass
 
 	def get_DocID(self, response):
-		print 'get_DocID:', response.body
-		body_text = response.body.replace("\\", "")
-		# print body_text
-		# print type(body_text)
 		try:
-			dict_text = json.loads(body_text[1:-1])
-		except:
-			dict_text = ""
-		if dict_text:
-			id_num = len(dict_text)
-			for id_index in range(1, id_num):
-				book_id = dict_text[id_index][u'文书ID']
-				case_num = dict_text[id_index][u'案号']
-				date_text = dict_text[id_index][u'裁判日期']
-				title = dict_text[id_index][u'案件名称']
-				doc_type = dict_text[id_index][u"案件类型"]
-				court = dict_text[id_index][u"法院名称"]
+			print('get_DocID:', response.body)
+			# 代理服务器
+			proxyHost = "http-dyn.abuyun.com"
+			proxyPort = "9020"
+
+			# 代理隧道验证信息
+			proxyUser = "H8PX142BPZXA2V0D"
+			proxyPass = "52DE8535C1DEA206"
+
+			proxyMeta = "http://%(user)s:%(pass)s@%(host)s:%(port)s" % {
+				"host": proxyHost,
+				"port": proxyPort,
+				"user": proxyUser,
+				"pass": proxyPass,
+			}
+
+			proxies = {
+				"http": proxyMeta,
+				"https": proxyMeta,
+			}
+			# time.sleep(5)
+			return_str = requests.post('http://www.ulaw.top:5677/crack', data={'a': response.body}, timeout=20, proxies=proxies)
+			# return_str = requests.post('http://www.ulaw.top:5677/crack', data={'a': response.body}, timeout=20,)
+			result_list = eval(return_str.text)
+			for result in result_list:
+				# [‘案件类型’,‘裁判日期’,‘案件名称’,‘文书ID’,‘审判程序’,‘案号’,‘法院名称’,‘裁判要旨’]
+				book_id = result[3]
+				case_num = result[5]
+				date_text = result[1]
+				title = result[2]
+				doc_type = result[0]
+				court = result[6]
 				url = "http://wenshu.court.gov.cn/CreateContentJS/CreateContentJS.aspx?DocID=" + book_id
 				yield Request(url,
 							  meta={"date_text": date_text, "title": title, "case_num": case_num,
-									"doc_type": doc_type, "court": court,},
-							  callback=self.parse, dont_filter=True,)
+									"doc_type": doc_type, "court": court, },
+							  callback=self.parse, dont_filter=True, )
+		except:
+			pass
 
 	def parse(self, response):
-		temp = response.xpath("/html/body/div//text()").extract()
+		jsonHtmlData = re.findall('var jsonHtmlData = "(\{.*?\}";)', response.text)[0]
+		d4 = json.loads(jsonHtmlData[:-2].replace('\\', ''))
+		d4_html = d4['Html'].encode('utf-8')
+		if d4_html:
+			root = html.fromstring(d4_html)
+			temp = root.xpath("//text()")
+		else:
+			temp = ''
+		# temp = response.xpath("/html/body/div//text()").extract()
 		if not temp:
 			req = response.request
 			req.meta["change_proxy"] = True
@@ -412,6 +456,9 @@ class ShfySpider(Spider):
 			# print news
 			return news
 
+	def spider_closed(self):
+		self.file_bad_req.close()
+
 	# def pyv8_js(self, cookie):
 	#     ctxt = PyV8.JSContext()
 	#     ctxt.enter()
@@ -425,6 +472,15 @@ class ShfySpider(Spider):
 	def get_js(self):
 		# f = open("D:/WorkSpace/MyWorkSpace/jsdemo/js/des_rsa.js",'r',encoding='UTF-8')
 		f = open(connect.UsedThing.js_path, 'r')
+		line = f.readline()
+		htmlstr = ''
+		while line:
+			htmlstr = htmlstr + line
+			line = f.readline()
+		return htmlstr
+
+	def decode_docID(self):
+		f = open(connect.UsedThing.IDjs_path, 'r')
 		line = f.readline()
 		htmlstr = ''
 		while line:

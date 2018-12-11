@@ -7,6 +7,7 @@
 
 import codecs
 import hashlib
+import json
 import time, os
 import re
 
